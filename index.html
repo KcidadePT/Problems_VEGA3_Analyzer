@@ -10,7 +10,7 @@
 .alarm-row td{background:rgba(248,113,113,.16)!important;border-top:1px solid rgba(248,113,113,.55);border-bottom:1px solid rgba(248,113,113,.35)} .alarm-row td:first-child{color:#fecaca;font-weight:700}.build-overlay{position:fixed;inset:0;z-index:999;background:#050b14cc;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}.build-overlay.show{display:flex}.build-card{width:min(430px,calc(100vw - 32px));background:var(--panel);border:1px solid #49617f;border-radius:12px;padding:20px;box-shadow:0 18px 55px #000b;text-align:center}.spinner{width:34px;height:34px;margin:0 auto 12px;border:3px solid #263a56;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}.build-card strong{display:block;font-size:15px;margin-bottom:6px}.build-card span{font-size:12px;color:var(--muted)}@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head><body>
-<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.12</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
+<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.13</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
 <div class="wrap">
 <aside class="sidebar">
  <div class="panel"><h2>Fontes de dados</h2><div class="filebox"><label>Selecionar os 5 CSVs de uma vez</label><input type="file" id="multiFiles" accept=".csv,.txt" multiple></div><div id="fileMatchStatus" class="status">A identificação é feita pelo nome exato do ficheiro.</div><div class="progress"><i id="prog"></i></div><div id="loadStatus" class="status">Selecione os CSVs e carregue os dados.</div><button id="loadBtn">Carregar / reconstruir dashboard</button></div>
@@ -37,7 +37,7 @@
  <div class="panel data-table-panel"><div class="table-controls"><h2 id="timelineTitle">Tabela cronológica</h2><span class="hint" id="timelineHint">Apenas amostras reais do período visível; células sem amostra ficam vazias.</span></div><div class="tablewrap"><table class="timeline-table" id="timelineTable"><thead></thead><tbody></tbody></table></div></div>
 </main></div><div id="tooltip" class="tooltip"></div><div id="buildOverlay" class="build-overlay"><div class="build-card"><div class="spinner"></div><strong id="buildTitle">A construir os gráficos…</strong><span id="buildDetail">A preparar a visualização dos dados.</span><div id="buildProgress" style="margin-top:8px;font-size:11px;color:#7f94b2"></div></div></div>
 <script>
-const APP_VERSION='0.10.12';
+const APP_VERSION='0.10.13';
 const ARM_PRODUCTS={
  B1A1:['GASOIL','FAME','HVO'],B1A2:['GASOLINE98','ETHANOL'],B1A3:['GASOLINE95','ETHANOL'],B1A4:['GAS.AG'],
  B2A1:['GASOIL','FAME','HVO'],B2A2:['HVO'],B2A3:['GASOIL','FAME','HVO'],B2A4:['GASOLINE95','ETHANOL'],
@@ -136,7 +136,27 @@ function chartSeries(kind){
  }
  return ss;
 }
-function seriesLabel(s){return s.src==='Util'?friendlyUtilName((state.utilTags.get(Number(String(s.key).split(':')[1]))||s.name)):s.name}
+function pumpProductLabel(pm){
+ pm=String(pm||'').toUpperCase();
+ if(/^P1/.test(pm))return'Gasoil';
+ if(/^P3001/.test(pm))return'Gasoline98';
+ if(/^P3000/.test(pm))return'Gasoline95';
+ if(/^P4/.test(pm))return'Fame';
+ if(/^P5/.test(pm))return'Ethanol';
+ return'';
+}
+const PT_PUMP={PT09:'P1000A',PT10:'P1000B',PT11:'P1000E',PT16:'P3001A',PT17:'P3001B',PT18:'P3000A',PT19:'P3000B',PT23:'P4001B',PT27:'P5001B',PT28:'P5001C',PT29:'P5001D'};
+function seriesLabel(s){
+ if(s.src==='Util'){
+  const raw=String(state.utilTags.get(Number(String(s.key).split(':')[1]))||s.name);
+  const pt=(raw.match(/PT\d+/i)||[])[0]?.toUpperCase();
+  if(pt&&PT_PUMP[pt]){const pm=PT_PUMP[pt],prod=pumpProductLabel(pm);return pm+(prod?' ('+prod+')':'')}
+  const pm=(raw.match(/P\d{4}[A-Z]?/i)||[])[0]?.toUpperCase();
+  if(pm&&/\.Current(?:$|\b)|\bCurrent\b/i.test(raw)){const prod=pumpProductLabel(pm);return pm+(prod?' ('+prod+')':'')}
+  return friendlyUtilName(raw);
+ }
+ return s.name
+}
 function legendColor(s,all){let i=all.findIndex(x=>x.key===s.key);return palette[(i<0?0:i)%palette.length]}
 function selectLegendSeries(key,additive){
  const target=state.series.get(key);if(!target)return;
