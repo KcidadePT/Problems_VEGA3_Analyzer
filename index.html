@@ -10,7 +10,7 @@
 .alarm-row td{background:rgba(248,113,113,.16)!important;border-top:1px solid rgba(248,113,113,.55);border-bottom:1px solid rgba(248,113,113,.35)} .alarm-row td:first-child{color:#fecaca;font-weight:700}.build-overlay{position:fixed;inset:0;z-index:999;background:#050b14cc;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}.build-overlay.show{display:flex}.build-card{width:min(430px,calc(100vw - 32px));background:var(--panel);border:1px solid #49617f;border-radius:12px;padding:20px;box-shadow:0 18px 55px #000b;text-align:center}.spinner{width:34px;height:34px;margin:0 auto 12px;border:3px solid #263a56;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}.build-card strong{display:block;font-size:15px;margin-bottom:6px}.build-card span{font-size:12px;color:var(--muted)}@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head><body>
-<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.3</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
+<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.4</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
 <div class="wrap">
 <aside class="sidebar">
  <div class="panel"><h2>Fontes de dados</h2><div class="filebox"><label>Selecionar os 5 CSVs de uma vez</label><input type="file" id="multiFiles" accept=".csv,.txt" multiple></div><div id="fileMatchStatus" class="status">A identificação é feita pelo nome exato do ficheiro.</div><div class="progress"><i id="prog"></i></div><div id="loadStatus" class="status">Selecione os CSVs e carregue os dados.</div><button id="loadBtn">Carregar / reconstruir dashboard</button></div>
@@ -35,7 +35,7 @@
  <div class="panel data-table-panel"><div class="table-controls"><h2 id="timelineTitle">Tabela cronológica</h2><span class="hint" id="timelineHint">Apenas amostras reais do período visível; células sem amostra ficam vazias.</span></div><div class="tablewrap"><table class="timeline-table" id="timelineTable"><thead></thead><tbody></tbody></table></div></div>
 </main></div><div id="tooltip" class="tooltip"></div><div id="buildOverlay" class="build-overlay"><div class="build-card"><div class="spinner"></div><strong id="buildTitle">A construir os gráficos…</strong><span id="buildDetail">A preparar a visualização dos dados.</span></div></div>
 <script>
-const APP_VERSION='0.10.3';
+const APP_VERSION='0.10.4';
 const SOURCES=[
  ['vegaFloat','Vega3FloatTable.csv',/^Vega3FloatTable(?:\(\d+\))?\.csv$/i],
  ['vegaTags','Vega3TagTable.csv',/^Vega3TagTable(?:\(\d+\))?\.csv$/i],
@@ -91,10 +91,10 @@ function drawChart(box){let kind=box.dataset.kind,c=box.querySelector('canvas'),
  let leg=$('#leg-'+kind);if(leg){leg.innerHTML=shown.map(x=>`<span class="legend-item" data-key="${x.key}"><i class="legend-swatch" style="background:${x.color}"></i>${x.name}</span>`).join(''); leg.querySelectorAll('.legend-item').forEach(el=>el.onclick=()=>{state.hidden.add(el.dataset.key);renderChartsOnly()}); let all=armSeries().filter(s=>classify(s)===kind&&state.hidden.has(s.key)); for(const hs of all){let color=palette[Math.abs([...state.series.keys()].indexOf(hs.key))%palette.length];let el=document.createElement('span');el.className='legend-item off';el.dataset.key=hs.key;let hname=hs.src==='Util'?friendlyUtilName((state.utilTags.get(Number(String(hs.key).split(':')[1]))||hs.name)):hs.name;el.innerHTML=`<i class="legend-swatch" style="background:${color}"></i>${hname}`;el.onclick=()=>{state.hidden.delete(hs.key);renderChartsOnly()};leg.appendChild(el)}}
  if(state.cursor>=state.viewMin&&state.cursor<=state.viewMax){let x=L+(state.cursor-state.viewMin)/(state.viewMax-state.viewMin)*(W-L-R);g.strokeStyle='#fff';g.setLineDash([3,3]);g.beginPath();g.moveTo(x,T);g.lineTo(x,H-B);g.stroke();g.setLineDash([])}
  box._plot={L,R,T,B,W,H,ymin,ymax};}
-function renderAll(){for(const b of $('.chart'))drawChart(b);renderCursor();renderTimelineTable()}
-function renderChartsOnly(){for(const b of $('.chart'))drawChart(b);renderCursor()}
+function renderAll(){for(const b of $$('.chart'))drawChart(b);renderCursor();renderTimelineTable()}
+function renderChartsOnly(){for(const b of $$('.chart'))drawChart(b);renderCursor()}
 function redrawCursorOnly(){
- for(const box of $('.chart')){let p=box._plot;if(!p)continue;drawChart(box)}
+ for(const box of $$('.chart')){let p=box._plot;if(!p)continue;drawChart(box)}
  renderCursor();
 }
 let cursorRAF=0;
@@ -142,7 +142,7 @@ async function initialRender(){
  showBuild(buildMsg('A construir os gráficos…','Building charts…'),buildMsg('A preparar as séries visíveis.','Preparing visible series.'));
  await nextFrame();
  setBuildDetail('A desenhar os gráficos…','Drawing charts…');
- for(const b of $('.chart')){drawChart(b);await new Promise(r=>setTimeout(r,0))}
+ for(const b of $$('.chart')){drawChart(b);await new Promise(r=>setTimeout(r,0))}
  setBuildDetail('A construir a tabela cronológica…','Building chronological table…');
  await nextFrame();renderCursor();renderTimelineTable();
  $('#buildOverlay').classList.remove('show');
