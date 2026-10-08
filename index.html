@@ -10,7 +10,7 @@
 .alarm-row td{background:rgba(248,113,113,.16)!important;border-top:1px solid rgba(248,113,113,.55);border-bottom:1px solid rgba(248,113,113,.35)} .alarm-row td:first-child{color:#fecaca;font-weight:700}.build-overlay{position:fixed;inset:0;z-index:999;background:#050b14cc;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}.build-overlay.show{display:flex}.build-card{width:min(430px,calc(100vw - 32px));background:var(--panel);border:1px solid #49617f;border-radius:12px;padding:20px;box-shadow:0 18px 55px #000b;text-align:center}.spinner{width:34px;height:34px;margin:0 auto 12px;border:3px solid #263a56;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}.build-card strong{display:block;font-size:15px;margin-bottom:6px}.build-card span{font-size:12px;color:var(--muted)}@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head><body>
-<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.9</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
+<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.10</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
 <div class="wrap">
 <aside class="sidebar">
  <div class="panel"><h2>Fontes de dados</h2><div class="filebox"><label>Selecionar os 5 CSVs de uma vez</label><input type="file" id="multiFiles" accept=".csv,.txt" multiple></div><div id="fileMatchStatus" class="status">A identificação é feita pelo nome exato do ficheiro.</div><div class="progress"><i id="prog"></i></div><div id="loadStatus" class="status">Selecione os CSVs e carregue os dados.</div><button id="loadBtn">Carregar / reconstruir dashboard</button></div>
@@ -36,7 +36,7 @@
  <div class="panel data-table-panel"><div class="table-controls"><h2 id="timelineTitle">Tabela cronológica</h2><span class="hint" id="timelineHint">Apenas amostras reais do período visível; células sem amostra ficam vazias.</span></div><div class="tablewrap"><table class="timeline-table" id="timelineTable"><thead></thead><tbody></tbody></table></div></div>
 </main></div><div id="tooltip" class="tooltip"></div><div id="buildOverlay" class="build-overlay"><div class="build-card"><div class="spinner"></div><strong id="buildTitle">A construir os gráficos…</strong><span id="buildDetail">A preparar a visualização dos dados.</span><div id="buildProgress" style="margin-top:8px;font-size:11px;color:#7f94b2"></div></div></div>
 <script>
-const APP_VERSION='0.10.9';
+const APP_VERSION='0.10.10';
 const ARM_PRODUCTS={
  B1A1:['GASOIL','FAME','HVO'],B1A2:['GASOLINE98','ETHANOL'],B1A3:['GASOLINE95','ETHANOL'],B1A4:['GAS.AG'],
  B2A1:['GASOIL','FAME','HVO'],B2A2:['HVO'],B2A3:['GASOIL','FAME','HVO'],B2A4:['GASOLINE95','ETHANOL'],
@@ -96,11 +96,25 @@ function renderEvents(){let f=$('#alarmFilter').value,arm=$('#arm').value;let e=
 const palette=['#60a5fa','#34d399','#fbbf24','#fb7185','#a78bfa','#22d3ee','#f97316','#e879f9','#84cc16','#f43f5e'];
 function pointsIn(s,a,b){let p=s.p,lo=0,hi=p.length;while(lo<hi){let m=(lo+hi)>>1;if(p[m].t<a)lo=m+1;else hi=m}let out=[];for(let i=Math.max(0,lo-1);i<p.length&&p[i].t<=b;i++)out.push(p[i]);return out}
 function pointsForWindow(s,a,b){let p=s.p;if(!p.length)return[];let lo=0,hi=p.length;while(lo<hi){let m=(lo+hi)>>1;if(p[m].t<a)lo=m+1;else hi=m}let first=lo,out=[];if(first>0&&(first>=p.length||p[first].t>a))out.push({t:a,v:p[first-1].v,boundary:true});for(let i=first;i<p.length&&p[i].t<=b;i++)out.push(p[i]);let j=first;while(j<p.length&&p[j].t<=b)j++;if(out.length&&(out[out.length-1].t<b))out.push({t:b,v:out[out.length-1].v,boundary:true,sourceT:out[out.length-1].t});return out}
+function productOfUtilSeries(s){
+ const n=String(state.utilTags.get(Number(String(s.key).split(':')[1]))||s.full||s.name||'');
+ if(/Gasoline98/i.test(n))return'GASOLINE98';
+ if(/Gasoline95/i.test(n))return'GASOLINE95';
+ if(/Gasoil/i.test(n))return'GASOIL';
+ if(/Fame/i.test(n))return'FAME';
+ if(/Ethanol/i.test(n))return'ETHANOL';
+ if(/HVO/i.test(n))return'HVO';
+ return null;
+}
 function chartSeries(kind){
  let ss=armSeries().filter(s=>classify(s)===kind);
  if(kind==='analog'){
   const analogIp=analogIpForArm($('#arm').value);
   ss=ss.filter(s=>(!analogIp||String(s.name).includes(analogIp))&&pointsIn(s,state.viewMin,state.viewMax).some(p=>p.v!==0));
+ }
+ if(kind==='pumpdemand'){
+  const allowed=new Set(ARM_PRODUCTS[$('#arm').value]||[]);
+  ss=ss.filter(s=>{const p=productOfUtilSeries(s);return !p||allowed.has(p)});
  }
  return ss;
 }
