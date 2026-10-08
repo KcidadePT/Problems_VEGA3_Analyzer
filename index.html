@@ -10,10 +10,10 @@
 .alarm-row td{background:rgba(248,113,113,.16)!important;border-top:1px solid rgba(248,113,113,.55);border-bottom:1px solid rgba(248,113,113,.35)} .alarm-row td:first-child{color:#fecaca;font-weight:700}.build-overlay{position:fixed;inset:0;z-index:999;background:#050b14cc;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}.build-overlay.show{display:flex}.build-card{width:min(430px,calc(100vw - 32px));background:var(--panel);border:1px solid #49617f;border-radius:12px;padding:20px;box-shadow:0 18px 55px #000b;text-align:center}.spinner{width:34px;height:34px;margin:0 auto 12px;border:3px solid #263a56;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}.build-card strong{display:block;font-size:15px;margin-bottom:6px}.build-card span{font-size:12px;color:var(--muted)}@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head><body>
-<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.13</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
+<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.14</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
 <div class="wrap">
 <aside class="sidebar">
- <div class="panel"><h2>Fontes de dados</h2><div class="filebox"><label>Selecionar os 5 CSVs de uma vez</label><input type="file" id="multiFiles" accept=".csv,.txt" multiple></div><div id="fileMatchStatus" class="status">A identificação é feita pelo nome exato do ficheiro.</div><div class="progress"><i id="prog"></i></div><div id="loadStatus" class="status">Selecione os CSVs e carregue os dados.</div><button id="loadBtn">Carregar / reconstruir dashboard</button></div>
+ <div class="panel"><h2>Fontes de dados</h2><div class="filebox"><label>Selecionar os 3 CSVs de uma vez</label><input type="file" id="multiFiles" accept=".csv,.txt" multiple></div><div id="fileMatchStatus" class="status">A identificação é feita pelo nome exato do ficheiro.</div><div class="progress"><i id="prog"></i></div><div id="loadStatus" class="status">Selecione os CSVs e carregue os dados.</div><button id="loadBtn">Carregar / reconstruir dashboard</button></div>
  <div class="panel"><h2>Alarmes detetados</h2><div class="field"><label>Filtro AlarmCode</label><select id="alarmFilter"><option value="69">69</option><option value="all">Todos ≠ 0</option></select></div><div id="events" class="events"><div class="empty">Sem dados</div></div></div>
  <div class="panel"><h2>Notas</h2><div class="hint" id="notesText">• Os gráficos mantêm o último valor conhecido até existir uma nova amostra.<br>• O tooltip indica sempre a hora real da amostra usada.<br>• Ctrl + scroll no gráfico = zoom.<br>• Scroll normal = deslocar a página.<br>• Arrastar = deslocar no tempo.<br>• Clique = cursor sincronizado.<br>• Clique na legenda = isolar sinal; novo clique no único sinal visível = mostrar todos; Ctrl + clique = adicionar/remover sinal.<br>• Clique num alarme = janela ±2 min.</div></div>
 </aside>
@@ -37,7 +37,7 @@
  <div class="panel data-table-panel"><div class="table-controls"><h2 id="timelineTitle">Tabela cronológica</h2><span class="hint" id="timelineHint">Apenas amostras reais do período visível; células sem amostra ficam vazias.</span></div><div class="tablewrap"><table class="timeline-table" id="timelineTable"><thead></thead><tbody></tbody></table></div></div>
 </main></div><div id="tooltip" class="tooltip"></div><div id="buildOverlay" class="build-overlay"><div class="build-card"><div class="spinner"></div><strong id="buildTitle">A construir os gráficos…</strong><span id="buildDetail">A preparar a visualização dos dados.</span><div id="buildProgress" style="margin-top:8px;font-size:11px;color:#7f94b2"></div></div></div>
 <script>
-const APP_VERSION='0.10.13';
+const APP_VERSION='0.10.14';
 const ARM_PRODUCTS={
  B1A1:['GASOIL','FAME','HVO'],B1A2:['GASOLINE98','ETHANOL'],B1A3:['GASOLINE95','ETHANOL'],B1A4:['GAS.AG'],
  B2A1:['GASOIL','FAME','HVO'],B2A2:['HVO'],B2A3:['GASOIL','FAME','HVO'],B2A4:['GASOLINE95','ETHANOL'],
@@ -53,9 +53,7 @@ function renderArmProducts(){
 }
 const SOURCES=[
  ['vegaFloat','Vega3FloatTable.csv',/^Vega3FloatTable(?:\(\d+\))?\.csv$/i],
- ['vegaTags','Vega3TagTable.csv',/^Vega3TagTable(?:\(\d+\))?\.csv$/i],
  ['utilFloat','UtilizacaoBracos2FloatTable.csv',/^UtilizacaoBracos2FloatTable(?:\(\d+\))?\.csv$/i],
- ['utilTags','UtilizacaoBracos2TagTable.csv',/^UtilizacaoBracos2TagTable(?:\(\d+\))?\.csv$/i],
  ['analog','Vega_AnalogOutputs.csv',/^Vega_AnalogOutputs(?:\(\d+\))?\.csv$/i]
 ];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -69,7 +67,25 @@ function matchSelectedFiles(){
 }
 $('#multiFiles').addEventListener('change',matchSelectedFiles);
 const state={tags:new Map(),utilTags:new Map(),series:new Map(),analog:new Map(),events:[],min:Infinity,max:-Infinity,viewMin:0,viewMax:1,cursor:null,arms:new Set(),hidden:new Set(),lang:'pt',armCache:new Map()};
-function reset(){state.tags.clear();state.utilTags.clear();state.series.clear();state.analog.clear();state.events=[];state.min=Infinity;state.max=-Infinity;state.cursor=null;state.arms.clear();state.hidden.clear();state.armCache.clear()}
+const VEGA_ARM_ORDER=['B1A1','B1A2','B1A3','B1A4','B2A1','B2A2','B2A3','B2A4','B3A1','B3A2','B3A3','B3A4','B4A1','B4A2','B4A3','B5A1','B6A1','B7A1'];
+const VEGA_OFFSETS={BlendName:0,ArmStatus:2,StatusOfDelivery:6,StatusOfTransaction:7,CauseOfStopOfBatch:13,TypeOfAlarmStopsDelivery:14,AlarmCode:15,InterlockCode:16,FlowControlStatus:18,'BlendData.Flowrate':24,'Product1.Preset_Qtt':46,'Product1.Partial_GOV':52,'Product1.Flow':56,'Product1.Pressure':59,'Product2.Preset_Qtt':64,'Product2.Partial_GOV':70,'Product2.Flow':74,'Product2.Pressure':77,'Product3.Preset_Qtt':82,'Product3.Partial_GOV':88,'Product3.Flow':92,'Product3.Pressure':95};
+function seedInternalTags(){
+ state.tags.clear();state.utilTags.clear();state.arms.clear();
+ VEGA_ARM_ORDER.forEach((arm,i)=>{let m=arm.match(/^B(\d+)A(\d+)$/),base=i*97;state.arms.add(arm);for(const [suffix,off] of Object.entries(VEGA_OFFSETS))state.tags.set(base+off,`VEGA3_Bay${m[1]}.Arm[${m[2]}].${suffix}`)});
+ const u={
+  0:'PumpManag_Gasoil_Exp.In_ArmsRequesting',3:'PumpManag_Gasoline98.In_ArmsRequesting',4:'PumpManag_Gasoline95_Exp.In_ArmsRequesting',6:'PumpManag_Fame_Exp1.In_ArmsRequesting',7:'PumpManag_Fame_Exp2.In_ArmsRequesting',8:'PumpManag_Ethanol_Exp1.In_ArmsRequesting'
+ };
+ const blocks=[
+  [94,'P1000A','PT09'],[98,'P1000B','PT10'],[102,'P1000C','PT12'],[106,'P1000D','PT13'],[110,'P1000E','PT11'],
+  [114,'P2001A','PT14'],[118,'P2001B','PT15'],
+  [122,'P3001A','PT16'],[126,'P3001B','PT17'],[130,'P3000A','PT18'],[134,'P3000B','PT19'],
+  [150,'P4001B','PT23'],[154,'P4001C','PT24'],[158,'P4001D','PT25'],
+  [166,'P5001B','PT27'],[170,'P5001C','PT28'],[174,'P5001D','PT29']
+ ];
+ for(const [i,p,pt] of blocks){u[i]=p+'.Ligada';u[i+1]=p+'.Current';u[i+2]=p+'.IN_Auto_Request_Stat';u[i+3]=pt}
+ for(const [i,n] of Object.entries(u))state.utilTags.set(Number(i),n);
+}
+function reset(){state.series.clear();state.analog.clear();state.events=[];state.min=Infinity;state.max=-Infinity;state.cursor=null;state.hidden.clear();state.armCache.clear();seedInternalTags()}
 function num(s){if(s==null)return NaN;return Number(String(s).replace(/^\uFEFF/,'').replace(',','.').replace(/^"|"$/g,''))}
 function dt(s){let x=String(s).replace(/^\uFEFF/,'').trim().replace(' ','T');let t=Date.parse(x);return Number.isFinite(t)?t:NaN}
 function split(line){return line.split(';').map(x=>x.replace(/^"|"$/g,''))}
@@ -112,12 +128,13 @@ function productOfPumpProcessSeries(s){
  let pm=(n.match(/P\d{4}[A-Z]?/i)||[])[0]?.toUpperCase(),pt=(n.match(/PT\d+/i)||[])[0]?.toUpperCase();
  if(pm){
   if(/^P1/.test(pm))return'GASOIL';
+  if(/^P2/.test(pm))return'HVO';
   if(/^P3001/.test(pm))return'GASOLINE98';
   if(/^P3000/.test(pm))return'GASOLINE95';
   if(/^P4/.test(pm))return'FAME';
   if(/^P5/.test(pm))return'ETHANOL';
  }
- const ptMap={PT09:'GASOIL',PT10:'GASOIL',PT11:'GASOIL',PT16:'GASOLINE98',PT17:'GASOLINE98',PT18:'GASOLINE95',PT19:'GASOLINE95',PT27:'ETHANOL',PT28:'ETHANOL',PT29:'ETHANOL'};
+ const ptMap={PT09:'GASOIL',PT10:'GASOIL',PT11:'GASOIL',PT12:'GASOIL',PT13:'GASOIL',PT14:'HVO',PT15:'HVO',PT16:'GASOLINE98',PT17:'GASOLINE98',PT18:'GASOLINE95',PT19:'GASOLINE95',PT23:'FAME',PT24:'FAME',PT25:'FAME',PT27:'ETHANOL',PT28:'ETHANOL',PT29:'ETHANOL'};
  return ptMap[pt]||productOfUtilSeries(s);
 }
 function chartSeries(kind){
@@ -139,13 +156,14 @@ function chartSeries(kind){
 function pumpProductLabel(pm){
  pm=String(pm||'').toUpperCase();
  if(/^P1/.test(pm))return'Gasoil';
+ if(/^P2/.test(pm))return'HVO';
  if(/^P3001/.test(pm))return'Gasoline98';
  if(/^P3000/.test(pm))return'Gasoline95';
  if(/^P4/.test(pm))return'Fame';
  if(/^P5/.test(pm))return'Ethanol';
  return'';
 }
-const PT_PUMP={PT09:'P1000A',PT10:'P1000B',PT11:'P1000E',PT16:'P3001A',PT17:'P3001B',PT18:'P3000A',PT19:'P3000B',PT23:'P4001B',PT27:'P5001B',PT28:'P5001C',PT29:'P5001D'};
+const PT_PUMP={PT09:'P1000A',PT10:'P1000B',PT11:'P1000E',PT12:'P1000C',PT13:'P1000D',PT14:'P2001A',PT15:'P2001B',PT16:'P3001A',PT17:'P3001B',PT18:'P3000A',PT19:'P3000B',PT23:'P4001B',PT24:'P4001C',PT25:'P4001D',PT27:'P5001B',PT28:'P5001C',PT29:'P5001D'};
 function seriesLabel(s){
  if(s.src==='Util'){
   const raw=String(state.utilTags.get(Number(String(s.key).split(':')[1]))||s.name);
@@ -234,7 +252,7 @@ function attachChart(box){let drag=false,lastX=0;box.addEventListener('mousemove
 $$('.chart').forEach(attachChart);window.addEventListener('resize',renderAll);
 $('#alarmFilter').onchange=renderEvents;$('#arm').onchange=()=>{renderArmProducts();renderEvents();renderAll()};$('#apply').onclick=()=>{let a=inputTime($('#from')),b=inputTime($('#to'));if(Number.isFinite(a)&&Number.isFinite(b)&&b>a){state.viewMin=a;state.viewMax=b;renderAll()}};$('#full').onclick=()=>{state.viewMin=state.min;state.viewMax=state.max;setInput($('#from'),state.min);setInput($('#to'),state.max);renderAll()};
 
-const I18N={pt:{pill:'CSV local · sem servidor · sem upload',privacy:'Os ficheiros são processados apenas no browser.',sources:'Fontes de dados',select:'Selecionar os 5 CSVs de uma vez',load:'Carregar / reconstruir dashboard',alarms:'Alarmes detetados',notes:'Notas',arm:'Braço',start:'Início',end:'Fim',apply:'Aplicar período',full:'Período total',cursor:'Valores no cursor',timeline:'Tabela cronológica',delivery:'Carga / Presets / Partial GOV',flow:'Caudais',analog:'VEGA3 · Saídas analógicas 4–20 mA',pumpdemand:'Pedido de produto / ArmsRequesting',pumpstatus:'Estado / comando das bombas',pumpcurrent:'Corrente das bombas',pumppressure:'Pressão',alarm:'VEGA3 · Estados / Alarmes',notesText:'• Os gráficos mantêm o último valor conhecido até existir uma nova amostra.<br>• O tooltip indica sempre a hora real da amostra usada.<br>• Ctrl + scroll no gráfico = zoom.<br>• Scroll normal = deslocar a página.<br>• Arrastar = deslocar no tempo.<br>• Clique = cursor sincronizado.<br>• Clique num alarme = janela ±2 min.'},en:{pill:'Local CSV · no server · no upload',privacy:'Files are processed locally in your browser only.',sources:'Data sources',select:'Select all 5 CSV files at once',load:'Load / rebuild dashboard',alarms:'Detected alarms',notes:'Notes',arm:'Arm',start:'Start',end:'End',apply:'Apply time range',full:'Full range',cursor:'Values at cursor',timeline:'Chronological table',delivery:'Loading / Presets / Partial GOV',flow:'Flow rates',analog:'VEGA3 · Analog outputs 4–20 mA',pumpdemand:'Product demand / ArmsRequesting',pumpstatus:'Pump status / command',pumpcurrent:'Pump current',pumppressure:'Pressure',alarm:'VEGA3 · Status / Alarms',notesText:'• Charts hold the last known value until a new sample is recorded.<br>• The tooltip always shows the actual timestamp of the sample being used.<br>• Ctrl + scroll over a chart = zoom.<br>• Normal scroll = scroll the page.<br>• Drag = move through time.<br>• Click = synchronized cursor.<br>• Legend click = isolate signal; click the sole visible signal again = show all; Ctrl + click = add/remove signal.<br>• Click an alarm = ±2 min window.'}};
+const I18N={pt:{pill:'CSV local · sem servidor · sem upload',privacy:'Os ficheiros são processados apenas no browser.',sources:'Fontes de dados',select:'Selecionar os 3 CSVs de uma vez',load:'Carregar / reconstruir dashboard',alarms:'Alarmes detetados',notes:'Notas',arm:'Braço',start:'Início',end:'Fim',apply:'Aplicar período',full:'Período total',cursor:'Valores no cursor',timeline:'Tabela cronológica',delivery:'Carga / Presets / Partial GOV',flow:'Caudais',analog:'VEGA3 · Saídas analógicas 4–20 mA',pumpdemand:'Pedido de produto / ArmsRequesting',pumpstatus:'Estado / comando das bombas',pumpcurrent:'Corrente das bombas',pumppressure:'Pressão',alarm:'VEGA3 · Estados / Alarmes',notesText:'• Os gráficos mantêm o último valor conhecido até existir uma nova amostra.<br>• O tooltip indica sempre a hora real da amostra usada.<br>• Ctrl + scroll no gráfico = zoom.<br>• Scroll normal = deslocar a página.<br>• Arrastar = deslocar no tempo.<br>• Clique = cursor sincronizado.<br>• Clique num alarme = janela ±2 min.'},en:{pill:'Local CSV · no server · no upload',privacy:'Files are processed locally in your browser only.',sources:'Data sources',select:'Select all 5 CSV files at once',load:'Load / rebuild dashboard',alarms:'Detected alarms',notes:'Notes',arm:'Arm',start:'Start',end:'End',apply:'Apply time range',full:'Full range',cursor:'Values at cursor',timeline:'Chronological table',delivery:'Loading / Presets / Partial GOV',flow:'Flow rates',analog:'VEGA3 · Analog outputs 4–20 mA',pumpdemand:'Product demand / ArmsRequesting',pumpstatus:'Pump status / command',pumpcurrent:'Pump current',pumppressure:'Pressure',alarm:'VEGA3 · Status / Alarms',notesText:'• Charts hold the last known value until a new sample is recorded.<br>• The tooltip always shows the actual timestamp of the sample being used.<br>• Ctrl + scroll over a chart = zoom.<br>• Normal scroll = scroll the page.<br>• Drag = move through time.<br>• Click = synchronized cursor.<br>• Legend click = isolate signal; click the sole visible signal again = show all; Ctrl + click = add/remove signal.<br>• Click an alarm = ±2 min window.'}};
 function applyLanguage(){let en=state.lang==='en',d=I18N[state.lang];document.documentElement.lang=en?'en':'pt-PT';$('#langBtn').textContent=en?'Português':'English';document.querySelector('header .pill').textContent=d.pill;document.querySelector('header .hint').textContent=d.privacy;let panels=$$('.sidebar .panel');panels[0].querySelector('h2').textContent=d.sources;panels[0].querySelector('.filebox label').textContent=d.select;$('#loadBtn').textContent=d.load;panels[1].querySelector('h2').textContent=d.alarms;panels[2].querySelector('h2').textContent=d.notes;$('#notesText').innerHTML=d.notesText;let labs=$$('.toolbar label');labs[0].textContent=d.arm;labs[1].textContent=d.start;labs[2].textContent=d.end;$('#apply').textContent=d.apply;$('#full').textContent=d.full;let titles={delivery:d.delivery,flow:d.flow,analog:d.analog,pumpdemand:d.pumpdemand,pumpstatus:d.pumpstatus,pumpcurrent:d.pumpcurrent,pumppressure:d.pumppressure,alarm:d.alarm};for(const [k,v] of Object.entries(titles))document.querySelector(`.chart[data-kind="${k}"] .chart-title`).textContent=v;let cp=$('#cursorTime').closest('.panel');cp.querySelector('h2').textContent=d.cursor;$('#timelineTitle').textContent=d.timeline;if(!state.cursor)$('#cursorTime').textContent=en?'Click a chart.':'Clique num gráfico.';renderEvents();renderAll()}
 $('#langBtn').onclick=()=>{state.lang=state.lang==='pt'?'en':'pt';applyLanguage();renderArmProducts()};
 function showBuild(title,detail){$('#buildTitle').textContent=title;$('#buildDetail').textContent=detail;$('#buildOverlay').classList.add('show')}
@@ -251,5 +269,5 @@ async function initialRender(){
  $('#buildOverlay').classList.remove('show');
 }
 
-$('#loadBtn').onclick=async()=>{try{reset();$('#loadStatus').textContent='A carregar tabelas de tags…';$('#prog').style.width='0%';matchSelectedFiles();if(!selectedFiles.vegaTags||!selectedFiles.vegaFloat)throw new Error('Vega3TagTable.csv e Vega3FloatTable.csv são obrigatórios.');await parseTagFile(selectedFiles.vegaTags,state.tags,false);if(selectedFiles.utilTags)await parseTagFile(selectedFiles.utilTags,state.utilTags,true);$('#loadStatus').textContent='A processar históricos…';let jobs=[];jobs.push([selectedFiles.vegaFloat,state.tags,false]);if(selectedFiles.utilFloat)jobs.push([selectedFiles.utilFloat,state.utilTags,true]);let n=jobs.length+(selectedFiles.analog?1:0),i=0;for(const [f,m,u] of jobs){await parseFloat(f,m,u,i/n,1/n);i++}if(selectedFiles.analog){await parseAnalog(selectedFiles.analog,i/n,1/n)}buildEvents();let arms=[...state.arms].sort((x,y)=>{let a=x.match(/\d+/g).map(Number),b=y.match(/\d+/g).map(Number);return a[0]-b[0]||a[1]-b[1]});$('#arm').innerHTML=arms.map(a=>`<option>${a}</option>`).join('');if(arms.includes('B2A1'))$('#arm').value='B2A1';state.viewMin=state.min;state.viewMax=state.max;setInput($('#from'),state.min);setInput($('#to'),state.max);$('#prog').style.width='100%';$('#loadStatus').innerHTML=`<span class="ok">Dados processados.</span> ${state.series.size} sinais retidos · ${state.events.length} alarmes · ${fmt(state.min)} → ${fmt(state.max)}`;renderArmProducts();renderEvents();await initialRender();$('#loadStatus').innerHTML=`<span class="ok">Pronto.</span> ${state.series.size} sinais retidos · ${state.events.length} alarmes · ${fmt(state.min)} → ${fmt(state.max)}`}catch(e){$('#buildOverlay').classList.remove('show');$('#loadStatus').innerHTML=`<span class="bad">Erro:</span> ${e.message}`;console.error(e)}};
+$('#loadBtn').onclick=async()=>{try{reset();$('#loadStatus').textContent='A processar históricos…';$('#prog').style.width='0%';matchSelectedFiles();if(!selectedFiles.vegaFloat)throw new Error('Vega3FloatTable.csv é obrigatório.');let jobs=[];jobs.push([selectedFiles.vegaFloat,state.tags,false]);if(selectedFiles.utilFloat)jobs.push([selectedFiles.utilFloat,state.utilTags,true]);let n=jobs.length+(selectedFiles.analog?1:0),i=0;for(const [f,m,u] of jobs){await parseFloat(f,m,u,i/n,1/n);i++}if(selectedFiles.analog){await parseAnalog(selectedFiles.analog,i/n,1/n)}buildEvents();let arms=[...state.arms].sort((x,y)=>{let a=x.match(/\d+/g).map(Number),b=y.match(/\d+/g).map(Number);return a[0]-b[0]||a[1]-b[1]});$('#arm').innerHTML=arms.map(a=>`<option>${a}</option>`).join('');if(arms.includes('B2A1'))$('#arm').value='B2A1';state.viewMin=state.min;state.viewMax=state.max;setInput($('#from'),state.min);setInput($('#to'),state.max);$('#prog').style.width='100%';$('#loadStatus').innerHTML=`<span class="ok">Dados processados.</span> ${state.series.size} sinais retidos · ${state.events.length} alarmes · ${fmt(state.min)} → ${fmt(state.max)}`;renderArmProducts();renderEvents();await initialRender();$('#loadStatus').innerHTML=`<span class="ok">Pronto.</span> ${state.series.size} sinais retidos · ${state.events.length} alarmes · ${fmt(state.min)} → ${fmt(state.max)}`}catch(e){$('#buildOverlay').classList.remove('show');$('#loadStatus').innerHTML=`<span class="bad">Erro:</span> ${e.message}`;console.error(e)}};
 </script></body></html>
