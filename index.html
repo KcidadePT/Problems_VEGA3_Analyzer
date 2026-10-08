@@ -10,7 +10,7 @@
 .alarm-row td{background:rgba(248,113,113,.16)!important;border-top:1px solid rgba(248,113,113,.55);border-bottom:1px solid rgba(248,113,113,.35)} .alarm-row td:first-child{color:#fecaca;font-weight:700}.build-overlay{position:fixed;inset:0;z-index:999;background:#050b14cc;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}.build-overlay.show{display:flex}.build-card{width:min(430px,calc(100vw - 32px));background:var(--panel);border:1px solid #49617f;border-radius:12px;padding:20px;box-shadow:0 18px 55px #000b;text-align:center}.spinner{width:34px;height:34px;margin:0 auto 12px;border:3px solid #263a56;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}.build-card strong{display:block;font-size:15px;margin-bottom:6px}.build-card span{font-size:12px;color:var(--muted)}@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head><body>
-<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.4</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
+<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.5</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
 <div class="wrap">
 <aside class="sidebar">
  <div class="panel"><h2>Fontes de dados</h2><div class="filebox"><label>Selecionar os 5 CSVs de uma vez</label><input type="file" id="multiFiles" accept=".csv,.txt" multiple></div><div id="fileMatchStatus" class="status">A identificação é feita pelo nome exato do ficheiro.</div><div class="progress"><i id="prog"></i></div><div id="loadStatus" class="status">Selecione os CSVs e carregue os dados.</div><button id="loadBtn">Carregar / reconstruir dashboard</button></div>
@@ -33,9 +33,9 @@
  <div class="panel"><div class="chart-layout"><div class="chart small" data-kind="alarm"><div class="chart-title">VEGA3 · Estados / Alarmes</div><canvas></canvas></div><div class="legend" id="leg-alarm"></div></div></div>
  <div class="panel"><h2>Valores no cursor</h2><div id="cursorTime" class="hint">Clique num gráfico.</div><div class="tablewrap"><table><thead><tr><th>Sinal</th><th>Timestamp real</th><th>Valor</th></tr></thead><tbody id="cursorTable"></tbody></table></div></div>
  <div class="panel data-table-panel"><div class="table-controls"><h2 id="timelineTitle">Tabela cronológica</h2><span class="hint" id="timelineHint">Apenas amostras reais do período visível; células sem amostra ficam vazias.</span></div><div class="tablewrap"><table class="timeline-table" id="timelineTable"><thead></thead><tbody></tbody></table></div></div>
-</main></div><div id="tooltip" class="tooltip"></div><div id="buildOverlay" class="build-overlay"><div class="build-card"><div class="spinner"></div><strong id="buildTitle">A construir os gráficos…</strong><span id="buildDetail">A preparar a visualização dos dados.</span></div></div>
+</main></div><div id="tooltip" class="tooltip"></div><div id="buildOverlay" class="build-overlay"><div class="build-card"><div class="spinner"></div><strong id="buildTitle">A construir os gráficos…</strong><span id="buildDetail">A preparar a visualização dos dados.</span><div id="buildProgress" style="margin-top:8px;font-size:11px;color:#7f94b2"></div></div></div>
 <script>
-const APP_VERSION='0.10.4';
+const APP_VERSION='0.10.5';
 const SOURCES=[
  ['vegaFloat','Vega3FloatTable.csv',/^Vega3FloatTable(?:\(\d+\))?\.csv$/i],
  ['vegaTags','Vega3TagTable.csv',/^Vega3TagTable(?:\(\d+\))?\.csv$/i],
@@ -106,15 +106,14 @@ function lastKnown(s,t){let p=s.p;if(!p.length||p[0].t>t)return null;let lo=0,hi
 function renderCursor(){if(!state.cursor){$('#cursorTime').textContent=state.lang==='en'?'Click a chart.':'Clique num gráfico.';$('#cursorTable').innerHTML='';return}$('#cursorTime').textContent='Cursor: '+fmt(state.cursor);let rows=[];for(const s of armSeries()){let k=classify(s);if(!k)continue;let p=lastKnown(s,state.cursor);if(p)rows.push([s.name,fmt(p.t),fmtNum(p.v)])}rows.sort((a,b)=>a[0].localeCompare(b[0]));$('#cursorTable').innerHTML=rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')}
 
 function visibleSeries(){return armSeries().filter(s=>classify(s)&&!state.hidden.has(s.key))}
-function renderTimelineTable(){
+async function renderTimelineTableAsync(){
  let table=$('#timelineTable'),head=table.querySelector('thead'),body=table.querySelector('tbody');
  let ss=visibleSeries();let times=new Set();
  for(const s of ss)for(const p of pointsIn(s,state.viewMin,state.viewMax))times.add(p.t);
  let selectedArm=$('#arm').value;
  let alarmEvents=state.events.filter(e=>e.arm===selectedArm&&e.t>=state.viewMin&&e.t<=state.viewMax);
- // Alarm timestamps are always kept in the table, even when the table needs display sampling.
  for(const e of alarmEvents)times.add(e.t);
- let allTs=[...times].sort((a,b)=>a-b),ts=allTs;const MAX=5000;
+ let allTs=[...times].sort((a,b)=>a-b),ts=allTs;const MAX=2500;
  if(ts.length>MAX){
    let alarmTimes=new Set(alarmEvents.map(e=>e.t));let step=Math.ceil(ts.length/MAX);
    ts=ts.filter((t,i)=>i%step===0||alarmTimes.has(t));
@@ -124,8 +123,17 @@ function renderTimelineTable(){
  head.innerHTML='<tr><th>DB Time</th>'+ss.map(s=>`<th class="signal">${s.name}</th>`).join('')+'</tr>';
  let maps=ss.map(s=>{let m=new Map();for(const p of pointsIn(s,state.viewMin,state.viewMax))m.set(p.t,p.v);return {m,s}});
  let alarmByTime=new Map();for(const e of alarmEvents){if(!alarmByTime.has(e.t))alarmByTime.set(e.t,[]);alarmByTime.get(e.t).push(e)}
- body.innerHTML=ts.map(t=>{let alarms=alarmByTime.get(t)||[];let cls=alarms.length?' class="alarm-row"':'';let title=alarms.length?` title="${alarms.map(a=>'Alarm '+a.v+' · '+a.arm).join(' | ')}"`:'';return '<tr'+cls+title+'><td>'+fmt(t)+(alarms.length?` <strong>⚠ Alarm ${alarms.map(a=>a.v).join(', ')}</strong>`:'')+'</td>'+maps.map(o=>{if(o.m.has(t))return `<td>${fmtNum(o.m.get(t))}</td>`;let q=lastKnown(o.s,t);return q?`<td class="held" title="${state.lang==='en'?'Last sample':'Última amostra'}: ${fmt(q.t)}">${fmtNum(q.v)}</td>`:'<td class="na"></td>'}).join('')+'</tr>'}).join('')
+ body.innerHTML='';
+ const CHUNK=100;
+ for(let base=0;base<ts.length;base+=CHUNK){
+   let part=ts.slice(base,base+CHUNK);
+   let html=part.map(t=>{let alarms=alarmByTime.get(t)||[];let cls=alarms.length?' class="alarm-row"':'';let title=alarms.length?` title="${alarms.map(a=>'Alarm '+a.v+' · '+a.arm).join(' | ')}"`:'';return '<tr'+cls+title+'><td>'+fmt(t)+(alarms.length?` <strong>⚠ Alarm ${alarms.map(a=>a.v).join(', ')}</strong>`:'')+'</td>'+maps.map(o=>{if(o.m.has(t))return `<td>${fmtNum(o.m.get(t))}</td>`;let q=lastKnown(o.s,t);return q?`<td class="held" title="${state.lang==='en'?'Last sample':'Última amostra'}: ${fmt(q.t)}">${fmtNum(q.v)}</td>`:'<td class="na"></td>'}).join('')+'</tr>'}).join('');
+   body.insertAdjacentHTML('beforeend',html);
+   let bp=$('#buildProgress');if(bp)bp.textContent=(state.lang==='en'?'Table: ':'Tabela: ')+Math.min(base+CHUNK,ts.length)+' / '+ts.length;
+   await new Promise(r=>setTimeout(r,0));
+ }
 }
+function renderTimelineTable(){renderTimelineTableAsync().catch(console.error)}
 function hoverChart(box,e){let p=box._plot;if(!p)return;let rect=box.getBoundingClientRect(),x=e.clientX-rect.left;if(x<p.L||x>p.W-p.R){$('#tooltip').style.display='none';return}let t=state.viewMin+(x-p.L)/(p.W-p.L-p.R)*(state.viewMax-state.viewMin);let kind=box.dataset.kind;let ss=armSeries().filter(s=>classify(s)===kind&&!state.hidden.has(s.key));if(kind==='analog')ss=ss.filter(s=>pointsForWindow(s,state.viewMin,state.viewMax).some(q=>q.v!==0));let rows=[];ss.slice(0,12).forEach((s,i)=>{let q=lastKnown(s,t);if(q)rows.push({s,q,color:palette[i%palette.length]})});let tt=$('#tooltip');let sampleLabel=state.lang==='en'?'sample':'amostra';tt.innerHTML=`<div class="tt-time">${fmt(t)}</div>`+rows.map(r=>`<div class="tt-row"><i class="dot" style="background:${r.color}"></i><span>${r.s.src==='Util'?friendlyUtilName((state.utilTags.get(Number(String(r.s.key).split(':')[1]))||r.s.name)):r.s.name}</span><b>${fmtNum(r.q.v)}</b><span class="tt-sample">${sampleLabel}: ${fmt(r.q.t)}</span></div>`).join('');tt.style.display='block';let left=Math.min(innerWidth-tt.offsetWidth-12,e.clientX+14),top=Math.min(innerHeight-tt.offsetHeight-12,e.clientY+14);tt.style.left=left+'px';tt.style.top=top+'px'}
 function attachChart(box){let drag=false,lastX=0;box.addEventListener('mousemove',e=>{if(!drag)hoverChart(box,e)});box.addEventListener('mouseleave',()=>$('#tooltip').style.display='none');box.addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();let rect=box.getBoundingClientRect(),q=(e.clientX-rect.left)/rect.width,span=state.viewMax-state.viewMin,f=e.deltaY>0?1.18:.85,ns=Math.max(1000,Math.min(state.max-state.min,span*f)),center=state.viewMin+span*q;state.viewMin=Math.max(state.min,center-ns*q);state.viewMax=Math.min(state.max,state.viewMin+ns);state.viewMin=Math.max(state.min,state.viewMax-ns);renderInteraction()},{passive:false});box.addEventListener('mousedown',e=>{drag=true;lastX=e.clientX});window.addEventListener('mouseup',()=>drag=false);window.addEventListener('mousemove',e=>{if(!drag)return;let dx=e.clientX-lastX;lastX=e.clientX;let span=state.viewMax-state.viewMin,shift=-dx/box.clientWidth*span;let a=state.viewMin+shift,b=state.viewMax+shift;if(a<state.min){b+=state.min-a;a=state.min}if(b>state.max){a-=b-state.max;b=state.max}state.viewMin=a;state.viewMax=b;renderInteraction()});box.addEventListener('click',e=>{if(drag)return;let p=box._plot,rect=box.getBoundingClientRect(),x=e.clientX-rect.left;state.cursor=state.viewMin+(x-p.L)/(p.W-p.L-p.R)*(state.viewMax-state.viewMin);state.cursor=Math.max(state.viewMin,Math.min(state.viewMax,state.cursor));scheduleCursorRender()})}
 $$('.chart').forEach(attachChart);window.addEventListener('resize',renderAll);
@@ -144,7 +152,7 @@ async function initialRender(){
  setBuildDetail('A desenhar os gráficos…','Drawing charts…');
  for(const b of $$('.chart')){drawChart(b);await new Promise(r=>setTimeout(r,0))}
  setBuildDetail('A construir a tabela cronológica…','Building chronological table…');
- await nextFrame();renderCursor();renderTimelineTable();
+ await nextFrame();renderCursor();await renderTimelineTableAsync();
  $('#buildOverlay').classList.remove('show');
 }
 
