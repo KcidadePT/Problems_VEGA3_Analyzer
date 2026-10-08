@@ -10,7 +10,7 @@
 .alarm-row td{background:rgba(248,113,113,.16)!important;border-top:1px solid rgba(248,113,113,.55);border-bottom:1px solid rgba(248,113,113,.35)} .alarm-row td:first-child{color:#fecaca;font-weight:700}.build-overlay{position:fixed;inset:0;z-index:999;background:#050b14cc;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}.build-overlay.show{display:flex}.build-card{width:min(430px,calc(100vw - 32px));background:var(--panel);border:1px solid #49617f;border-radius:12px;padding:20px;box-shadow:0 18px 55px #000b;text-align:center}.spinner{width:34px;height:34px;margin:0 auto 12px;border:3px solid #263a56;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}.build-card strong{display:block;font-size:15px;margin-bottom:6px}.build-card span{font-size:12px;color:var(--muted)}@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head><body>
-<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.6</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
+<header><h1 data-i18n="title">VEGA3 Timeline Analyzer</h1><span class="pill" id="appVersion">v0.10.7</span><span class="pill" data-i18n="pill">CSV local · sem servidor · sem upload</span><span class="hint" data-i18n="privacy">Os ficheiros são processados apenas no browser.</span><button id="langBtn" class="langbtn">English</button></header>
 <div class="wrap">
 <aside class="sidebar">
  <div class="panel"><h2>Fontes de dados</h2><div class="filebox"><label>Selecionar os 5 CSVs de uma vez</label><input type="file" id="multiFiles" accept=".csv,.txt" multiple></div><div id="fileMatchStatus" class="status">A identificação é feita pelo nome exato do ficheiro.</div><div class="progress"><i id="prog"></i></div><div id="loadStatus" class="status">Selecione os CSVs e carregue os dados.</div><button id="loadBtn">Carregar / reconstruir dashboard</button></div>
@@ -36,7 +36,7 @@
  <div class="panel data-table-panel"><div class="table-controls"><h2 id="timelineTitle">Tabela cronológica</h2><span class="hint" id="timelineHint">Apenas amostras reais do período visível; células sem amostra ficam vazias.</span></div><div class="tablewrap"><table class="timeline-table" id="timelineTable"><thead></thead><tbody></tbody></table></div></div>
 </main></div><div id="tooltip" class="tooltip"></div><div id="buildOverlay" class="build-overlay"><div class="build-card"><div class="spinner"></div><strong id="buildTitle">A construir os gráficos…</strong><span id="buildDetail">A preparar a visualização dos dados.</span><div id="buildProgress" style="margin-top:8px;font-size:11px;color:#7f94b2"></div></div></div>
 <script>
-const APP_VERSION='0.10.6';
+const APP_VERSION='0.10.7';
 const ARM_PRODUCTS={
  B1A1:['GASOIL','FAME','HVO'],B1A2:['GASOLINE98','ETHANOL'],B1A3:['GASOLINE95','ETHANOL'],B1A4:['GAS.AG'],
  B2A1:['GASOIL','FAME','HVO'],B2A2:['HVO'],B2A3:['GASOIL','FAME','HVO'],B2A4:['GASOLINE95','ETHANOL'],
@@ -119,7 +119,8 @@ function nearest(s,t){let p=s.p;if(!p.length)return null;let lo=0,hi=p.length-1;
 function lastKnown(s,t){let p=s.p;if(!p.length||p[0].t>t)return null;let lo=0,hi=p.length;while(lo<hi){let m=(lo+hi)>>1;if(p[m].t<=t)lo=m+1;else hi=m}return p[Math.max(0,lo-1)]||null}
 function renderCursor(){if(!state.cursor){$('#cursorTime').textContent=state.lang==='en'?'Click a chart.':'Clique num gráfico.';$('#cursorTable').innerHTML='';return}$('#cursorTime').textContent='Cursor: '+fmt(state.cursor);let rows=[];for(const s of armSeries()){let k=classify(s);if(!k)continue;let p=lastKnown(s,state.cursor);if(p)rows.push([s.name,fmt(p.t),fmtNum(p.v)])}rows.sort((a,b)=>a[0].localeCompare(b[0]));$('#cursorTable').innerHTML=rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')}
 
-function visibleSeries(){return armSeries().filter(s=>classify(s)&&!state.hidden.has(s.key))}
+function analogIpForArm(arm){let m=String(arm||'').match(/^B(\d+)A\d+$/i);return m?'10.70.51.'+(120+Number(m[1])):null}
+function visibleSeries(){let arm=$('#arm').value,analogIp=analogIpForArm(arm);return armSeries().filter(s=>{if(!classify(s)||state.hidden.has(s.key))return false;if(s.src==='Analog'&&analogIp&&!String(s.name).includes(analogIp))return false;return true})}
 async function renderTimelineTableAsync(){
  let table=$('#timelineTable'),head=table.querySelector('thead'),body=table.querySelector('tbody');
  let ss=visibleSeries();let times=new Set();
